@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kv-cache-capacity-simulator"
+version = "0.1.1"
+description = "Replay request traces and estimate KV-cache capacity with exact LRU stack distances."
+readme = { file = "README.zh-CN.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Benchmark",
+]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/llc-kc/kv_cache_capacity_simulator"
+
+[project.scripts]
+kv-cache-token-replay = "token_ids_replay:main"
+kv-cache-request-replay = "request_replay:main"
+kv-cache-openai-to-token-ids = "openai_to_token_ids:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+py-modules = ["token_ids_replay", "request_replay", "openai_to_token_ids"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
