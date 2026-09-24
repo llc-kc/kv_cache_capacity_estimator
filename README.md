@@ -161,13 +161,9 @@ curl -s http://localhost:30000/v1/chat/completions \
   -d '{"model": "GLM-5.2", "messages": [{"role": "user", "content": "hello?"}]}'
 ```
 
-For more details on the KV capacity estimator, please refer to the documentation:
+For more details on the KV capacity estimator SGLang front end, please refer to the documentation:
 
 [KV Capacity Estimator documentation](https://github.com/llc-kc/sglang/blob/kv_capacity_estimator/kv_capacity_estimator/README.md?utm_source=chatgpt.com)
-
-#### Note
-
-The current implementation still has a tokenizer performance bottleneck. Further optimization of the tokenizer path is required before the estimator can efficiently support large-scale, highly concurrent production workloads.
 
 
 

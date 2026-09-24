@@ -138,9 +138,7 @@ curl -s http://localhost:30000/v1/chat/completions \
   -d '{"model": "GLM-5.2", "messages": [{"role": "user", "content": "hello?"}]}'
 ```
 
-使用可以参考文档：https://github.com/llc-kc/sglang/blob/kv_capacity_estimator/kv_capacity_estimator/README.md
-
-Note：当前还需要优化tokenizer性能瓶颈才能承受大规模并发业务请求。
+SGLang的前端使用可以参考文档：https://github.com/llc-kc/sglang/blob/kv_capacity_estimator/kv_capacity_estimator/README.md
 
 
 
