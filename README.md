@@ -1,5 +1,11 @@
 # KV Cache Capacity Simulator
 
+**This tool analyzes KV cache storage capacity requirements by replaying offline requests. **
+
+**It can also run as a service that receives a live request stream and estimates KV cache capacity requirements in real time.**
+
+
+
 ## Features
 
 ### 1. Offline Token ID Replay
