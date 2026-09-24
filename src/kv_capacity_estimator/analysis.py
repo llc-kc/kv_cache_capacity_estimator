@@ -159,15 +159,11 @@ class OnlineLRUAnalyzer:
         for index, (label, capacity_bytes) in enumerate(self._capacities):
             hit_rate = page_hits[index] / len(distances) if distances else 0.0
             logger.debug(
-                "request %d configured capacity hit-rate estimate: "
-                "capacity=%s, capacity_pages=%d, "
-                "page_hits=%d, page_accesses=%d, hit_rate=%.6f",
-                request_number,
-                label,
-                self._capacity_pages[index],
-                page_hits[index],
-                len(distances),
-                hit_rate,
+                f"request {request_number} configured capacity hit-rate estimate: "
+                f"capacity={label}, "
+                f"page_hits={page_hits[index]}, "
+                f"page_accesses={len(distances)}, "
+                f"hit_rate={hit_rate:.2f}",
             )
         self.fixed_capacity_seconds += time.perf_counter() - started_at
 
@@ -485,28 +481,14 @@ def _request_capacity_requirement(
     requirement = required_pages * page_bytes
 
     logger.debug(
-        "request %d prefix capacity requirement: pages=%d, "
-        "theoretical_prefix_hits=%d, theoretical_hit_rate=%.6f, "
-        "target_prefix_hits=%d, target_hit_rate=%.6f, "
-        "maximum_lru_depth=%s, required_capacity_pages=%d, "
-        "accumulated_cache_pages=%d, accumulated_cache_capacity_gib=%.6f",
-        request_number,
-        page_count,
-        theoretical_prefix_hits,
-        theoretical_hit_rate,
-        target_prefix_hits,
-        target_hit_rate,
-        maximum_lru_depth,
-        required_pages,
-        infinite_cache_pages,
-        infinite_cache_pages * page_bytes / 2**30,
-    )
-
-    logger.debug(
-        "request %d computed exact target capacity %d bytes (%d pages)",
-        request_number,
-        requirement,
-        requirement // page_bytes,
+        f"request {request_number} capacity estimate: pages={page_count}, "
+        f"theoretical_prefix_hits={theoretical_prefix_hits}, "
+        f"theoretical_hit_rate={theoretical_hit_rate:.2f}, "
+        f"target_prefix_hits={target_prefix_hits}, "
+        f"target_hit_rate={target_hit_rate:.2f}, "
+        f"maximum_lru_depth={maximum_lru_depth}, "
+        f"required_capacity={requirement / 2**30:.2f} Gib, "
+        f"accumulated_cache_capacity={infinite_cache_pages * page_bytes / 2**30:.2f} Gib",
     )
     return requirement
 
