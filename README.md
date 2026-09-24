@@ -164,3 +164,12 @@ kv-cache-token-replay requests.jsonl \
 ```
 
 The base wheel depends only on the Python standard library. When using the local `sglang` or `vllm` tokenization backend, run the tool in the corresponding engine's Docker environment.
+
+## Citation
+```text
+{
+  title={The KV Cache Working Set: Online Capacity Planning for LLM Inference Systems},
+  author={Luchang Li, Shuaishuai Wang, Zhao Ruan, Dongfang Li, Bozhao Gong},
+  year={2026}
+}
+```
