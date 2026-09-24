@@ -143,7 +143,7 @@ Build a wheel:
 
 ```bash
 python -m pip install build
-python -m build --wheel
+python -m build --wheel  --no-isolation
 ```
 
 The build artifact is written to the `dist/` directory and can be installed with:

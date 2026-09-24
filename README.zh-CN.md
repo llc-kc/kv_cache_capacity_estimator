@@ -148,7 +148,7 @@ pip install -e ./
 
 ```bash
 python -m pip install build
-python -m build --wheel
+python -m build --wheel  --no-isolation
 ```
 
 构建产物位于 `dist/` 目录，可通过下面的命令安装：
