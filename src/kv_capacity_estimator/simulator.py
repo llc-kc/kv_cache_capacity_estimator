@@ -94,7 +94,22 @@ class ReplaySimulator:
             include_partial_page=self._config.include_partial_page,
         )
         self._page_build_seconds += time.perf_counter() - started_at
-        return self._analyzer.process(page_keys)
+        return self.process_page_keys(page_keys)
+
+    def process_page_keys(
+        self, page_keys: Sequence[bytes]
+    ) -> RequestAnalysis:
+        """Update the LRU history from prebuilt chained page keys.
+
+        This is equivalent to :meth:`process` after the caller has converted
+        a request's token IDs into chained page hashes, for example with
+        :func:`chained_page_hashes`. Use this entry point when page hashing
+        can be parallelized outside the serialized simulation step, so that
+        only the shared LRU-history update is performed here.
+        """
+        if self._finished:
+            raise RuntimeError("cannot process requests after finish")
+        return self._analyzer.process(tuple(page_keys))
 
     def finish(self) -> SimulationResult:
         """Finalize aggregate metrics after all requests have arrived."""
