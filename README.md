@@ -30,7 +30,7 @@ By default, the target is 99% of the request's theoretical consecutive prefix-pa
 --target-hit-rate-percent 99
 ```
 
-`--capacities` estimates the hit rate at different capacities. The default values are `100GiB,200GiB,400GiB,800GiB,1TiB,2TiB,4TiB,6TiB,8TiB,12TiB,16TiB,24TiB,32TiB,64TiB`. Pass `--capacities` explicitly to override these defaults.
+`--capacities` estimates the hit rate at different capacities. The default values are `100GiB,200GiB,400GiB,800GiB,1TiB,2TiB,4TiB,6TiB,8TiB,12TiB,16TiB,24TiB,32TiB,64TiB`. Pass `--capacities` explicitly to override these defaults. Note that the tool determines a capacity requirement for each request, and these per-request results are independent of the `--capacities` setting.
 
 `--warm-up-percent PERCENT` accepts a value from 0 to 100 (or a percentage such as `20%`). The first `floor(total number of requests × PERCENT / 100)` requests are used only to establish the LRU/cache state. They are excluded from the request count, page-access count, all hit-rate metrics, and per-request capacity distribution. For example:
 
@@ -90,13 +90,38 @@ coming soon
 
 
 
-## Metrics
+## Interpreting Replay Results
+
+Example replay output:
+
+```text
+    Capacity        Pages    Page hit   Reuse hit   Prefix hit
+--------------------------------------------------------------
+      100GiB       27,277     40.95%     46.23%      40.95%
+      200GiB       54,555     57.13%     64.50%      57.13%
+      300GiB       81,833     67.92%     76.68%      67.92%
+      512GiB      139,662     81.56%     92.08%      81.56%
+        1TiB      279,324     87.99%     99.34%      87.99%
+      1.5TiB      418,987     88.58%    100.00%      88.58%
+        2TiB      558,649     88.58%    100.00%      88.58%
+        3TiB      837,974     88.58%    100.00%      88.58%
+    infinite     infinite     88.58%    100.00%      88.58%
+
+Per-request target capacity (99.00% of theoretical prefix hit rate, samples=1500):
+  mean=188.24GiB  p50=103.60GiB  p90=463.88GiB  p95=704.22GiB  p99=1023.81GiB  p999=1.33TiB
+```
+
+Metric definitions:
 
 ```text
 Page hit   = Number of page-access hits / Total number of page accesses
 Reuse hit  = Number of reusable-page hits / All non-cold-start page accesses
 Prefix hit = Sum of consecutive page hits from the start of each request / Total number of page accesses
 ```
+
+The output provides two complementary views: request hit rates at different capacities and the distribution of per-request capacity requirements. Together, they can be used to determine an appropriate cache capacity.
+
+We have found that the p99 estimate of the capacity required for requests to achieve 99% of their theoretical hit rate is generally a reasonable minimum capacity requirement.
 
 ## Installation and Wheel Build
 

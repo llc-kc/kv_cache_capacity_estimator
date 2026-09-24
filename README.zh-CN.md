@@ -30,7 +30,7 @@ python src/token_ids_replay.py token_ids.jsonl \
 --target-hit-rate-percent 99
 ```
 
-`--capacities` 各种容量的命中率预估，默认值：`100GiB,200GiB,400GiB,800GiB,1TiB,2TiB,4TiB,6TiB,8TiB,12TiB,16TiB,24TiB,32TiB,64TiB`。显式传入 `--capacities` 可覆盖默认值。
+`--capacities` 各种容量的命中率预估，默认值：`100GiB,200GiB,400GiB,800GiB,1TiB,2TiB,4TiB,6TiB,8TiB,12TiB,16TiB,24TiB,32TiB,64TiB`。显式传入 `--capacities` 可覆盖默认值。注意每个请求会搜索一个对应的容量需求，结果与这个capacities设置无关。
 
 `--warm-up-percent PERCENT` 接受 0 到 100（也可写成 `20%`）。输入开头`floor(请求总数 × PERCENT / 100)` 条请求只用于建立 LRU/cache 状态，不会计入请求数、page 访问数、任何命中率或每请求容量分布。例如：
 
@@ -92,13 +92,40 @@ coming soon
 
 
 
-## Metrics
+## Replay结果解释
+
+Replay结果样例
+
+```
+    Capacity        Pages    Page hit   Reuse hit   Prefix hit
+--------------------------------------------------------------
+      100GiB       27,277     40.95%     46.23%      40.95%
+      200GiB       54,555     57.13%     64.50%      57.13%
+      300GiB       81,833     67.92%     76.68%      67.92%
+      512GiB      139,662     81.56%     92.08%      81.56%
+        1TiB      279,324     87.99%     99.34%      87.99%
+      1.5TiB      418,987     88.58%    100.00%      88.58%
+        2TiB      558,649     88.58%    100.00%      88.58%
+        3TiB      837,974     88.58%    100.00%      88.58%
+    infinite     infinite     88.58%    100.00%      88.58%
+
+Per-request target capacity (99.00% of theoretical prefix hit rate, samples=1500):
+  mean=188.24GiB  p50=103.60GiB  p90=463.88GiB  p95=704.22GiB  p99=1023.81GiB  p999=1.33TiB
+```
+
+
+
+结果含义
 
 ```text
 Page hit   = 命中的 page 访问数 / 全部 page 访问数
 Reuse hit  = 命中的可复用 page 数 / 所有非冷启动 page 访问数
 Prefix hit = 各请求从开头连续命中的 page 数之和 / 全部 page 访问数
 ```
+
+这个结果包含了2个层面，一个是不同容量下的请求命中率计算。另一个是请求的容量需求统计。这两个可以用于综合判断容量的需求。
+
+我们发现，通常采用p99的请求达成p99的理论命中率的容量预估为一个合理的最低要求。
 
 
 
