@@ -1,4 +1,4 @@
-# KV Cache 容量仿真工具
+# KV Cache 容量分析工具
 
 **本工具可以通过离线请求回放分析请求的kv cache存储容量需求。**
 
@@ -6,9 +6,9 @@
 
 
 
-## 功能
+# 功能
 
-### 1. 离线 token IDs 回放
+## 1. 离线 token IDs 回放
 
 这是最推荐的使用方式，这个方式具备最小的依赖，不依赖于sglang或者vllm等引擎。而下面的基于openai请求的replay方式则容易在tokenize过程遇到一些问题。
 
@@ -44,7 +44,7 @@ python src/token_ids_replay.py token_ids.jsonl \
 --warm-up-percent 20
 ```
 
-### 2. OpenAI 兼容请求回放
+## 2. OpenAI 兼容请求回放
 
 输入为 OpenAI Chat/Completions 兼容的 JSONL。既支持直接请求对象，也支持 OpenAI Batch API 的 `body` 包装格式。工具支持三种 tokenize 后端，得到的 token IDs 都会送入与功能 1 完全相同的分析流程。
 
@@ -75,7 +75,7 @@ python src/request_replay.py \
 
 - GLM 5.2, token ids与sglang引擎生成的一致。在SGLang v0.5.19版本和fp8_e4m3 kv cache数据类型，不开启MTP时，每个token的kv cache容量为日志打印为60 KiB.
 
-### 3. OpenAI 请求转换为 token IDs
+## 3. OpenAI 请求转换为 token IDs
 
 `openai_to_token_ids.py` 复用上述三种 tokenize 后端，将 OpenAI Chat/Completions兼容 JSONL 转为离线 token-ID JSONL。输出每行是一个 token ID 数组，可直接作为`token_ids_replay.py` 的输入。未指定 `--output` 时写到标准输出。
 
@@ -92,13 +92,59 @@ python src/openai_to_token_ids.py \
 
 
 
-### 4. online KV cache容量分析
+## 4. online KV cache容量分析
 
-coming soon
+当前通过在sglang中插入kv_capacity_estimator的支持，源码见：https://github.com/llc-kc/sglang/tree/kv_capacity_estimator
+
+使用方法：
+
+下载镜像lmsysorg/sglang:v0.5.20-cu130，启动基于该镜像的容器。
+
+按照文档下方的流程安装kv_capacity_estimator.
+
+下载sglang适配和安装:
+
+```
+git clone -b kv_capacity_estimator https://github.com/llc-kc/sglang.git
+cd sglang
+pip uninstall -y sglang
+pip install -e "python"
+```
+
+启动一个服务，样例：
+
+```
+sglang serve models/GLM-5.2-FP8 \
+  --model-type llm \
+  --tool-call-parser glm47 \
+  --tokenizer-worker-num 32 \
+  --enable-metrics \
+  --host 0.0.0.0 \
+  --port 30000 \
+  --log-level debug \
+  --kv-capacity-estimator \
+  --kv-capacity-estimator-config '{
+    "kv_bytes_per_token": 61505,
+    "target_hit_rate_ratio": 0.99,
+    "slide_window_size": 3000
+  }' 
+```
+
+请求该服务端口：
+
+```
+curl -s http://localhost:30000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "GLM-5.2", "messages": [{"role": "user", "content": "hello?"}]}'
+```
+
+使用可以参考文档：https://github.com/llc-kc/sglang/blob/kv_capacity_estimator/kv_capacity_estimator/README.md
+
+Note：当前还需要优化tokenizer性能瓶颈才能承受大规模并发业务请求。
 
 
 
-## Replay结果解释
+# Replay结果解释
 
 Replay结果样例
 
@@ -135,7 +181,7 @@ Prefix hit = 各请求从开头连续命中的 page 数之和 / 全部 page 访�
 
 
 
-## 安装与构建 wheel
+# 安装与构建 wheel
 
 项目使用标准的 `pyproject.toml` 构建配置，要求 Python 3.10 或更高版本。
 从源码安装：
@@ -176,7 +222,7 @@ kv-capacity-token-replay requests.jsonl \
 
 基础 wheel 只依赖 Python 标准库。使用本地 `sglang` 或 `vllm` tokenize 后端时，仍需在该引擎的docker运行环境中执行。
 
-## Citation
+# Citation
 ```text
 {
   title={The KV Cache Working Set: Online Capacity Planning for LLM Inference Systems},
