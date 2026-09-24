@@ -8,7 +8,7 @@ import logging
 import time
 from collections.abc import Iterable
 
-from kv_cache_simulator.cli_args import (
+from kv_capacity_estimator.cli_args import (
     add_simulation_arguments,
     log_arguments,
     log_request_details,
@@ -16,8 +16,8 @@ from kv_cache_simulator.cli_args import (
     print_simulation,
     simulation_config,
 )
-from kv_cache_simulator.simulator import simulate
-from kv_cache_simulator.token_id_replay import resolve_parser
+from kv_capacity_estimator.simulator import simulate
+from kv_capacity_estimator.token_id_replay import resolve_parser
 
 
 def build_parser() -> argparse.ArgumentParser:

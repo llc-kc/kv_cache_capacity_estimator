@@ -149,21 +149,21 @@ python -m build --wheel
 The build artifact is written to the `dist/` directory and can be installed with:
 
 ```bash
-python -m pip install dist/kv_cache_capacity_simulator-0.1.1-py3-none-any.whl
+python -m pip install dist/kv_capacity_estimator-0.2.0-py3-none-any.whl
 ```
 
 After installation, the following command-line entry points are available. They correspond to the three original scripts under `src/`:
 
 ```text
-kv-cache-token-replay
-kv-cache-request-replay
-kv-cache-openai-to-token-ids
+kv-capacity-token-replay
+kv-capacity-request-replay
+kv-capacity-openai-to-token-ids
 ```
 
 For example, offline Token ID replay can also be run as follows:
 
 ```bash
-kv-cache-token-replay requests.jsonl \
+kv-capacity-token-replay requests.jsonl \
   --kv-bytes-per-token 61505 \
   --page-size 64 \
   --capacities 10GiB,100GiB,1TiB

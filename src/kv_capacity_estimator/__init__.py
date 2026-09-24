@@ -33,7 +33,7 @@ from .simulator import (
 )
 
 try:
-    __version__ = version("kv-cache-capacity-simulator")
+    __version__ = version("kv-capacity-estimator")
 except PackageNotFoundError:
     # The source tree can still be imported directly without installing a wheel.
     __version__ = "0.0.0.dev0"

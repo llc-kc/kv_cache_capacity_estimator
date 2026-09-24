@@ -8,7 +8,7 @@ import logging
 import time
 from collections.abc import Iterable
 
-from kv_cache_simulator.cli_args import (
+from kv_capacity_estimator.cli_args import (
     add_simulation_arguments,
     log_arguments,
     log_request_details,
@@ -16,9 +16,9 @@ from kv_cache_simulator.cli_args import (
     print_simulation,
     simulation_config,
 )
-from kv_cache_simulator.simulator import simulate
-from kv_cache_simulator.tokenize import tokenize_openai_trace
-from kv_cache_simulator.tokenize.cli import (
+from kv_capacity_estimator.simulator import simulate
+from kv_capacity_estimator.tokenize import tokenize_openai_trace
+from kv_capacity_estimator.tokenize.cli import (
     add_tokenizer_arguments,
     build_tokenizer,
     close_tokenizer,

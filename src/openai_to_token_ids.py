@@ -11,10 +11,10 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TextIO
 
-from kv_cache_simulator.cli_args import log_replay_progress
-from kv_cache_simulator.models import TokenIdsRequest
-from kv_cache_simulator.tokenize import tokenize_openai_trace
-from kv_cache_simulator.tokenize.cli import (
+from kv_capacity_estimator.cli_args import log_replay_progress
+from kv_capacity_estimator.models import TokenIdsRequest
+from kv_capacity_estimator.tokenize import tokenize_openai_trace
+from kv_capacity_estimator.tokenize.cli import (
     add_tokenizer_arguments,
     build_tokenizer,
     close_tokenizer,

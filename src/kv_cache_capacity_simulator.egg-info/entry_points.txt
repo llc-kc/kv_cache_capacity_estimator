@@ -1,4 +1,0 @@
-[console_scripts]
-kv-cache-openai-to-token-ids = openai_to_token_ids:main
-kv-cache-request-replay = request_replay:main
-kv-cache-token-replay = token_ids_replay:main

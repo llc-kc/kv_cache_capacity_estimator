@@ -154,21 +154,21 @@ python -m build --wheel
 构建产物位于 `dist/` 目录，可通过下面的命令安装：
 
 ```bash
-python -m pip install dist/kv_cache_capacity_simulator-0.1.1-py3-none-any.whl
+python -m pip install dist/kv_capacity_estimator-0.2.0-py3-none-any.whl
 ```
 
 安装后提供以下命令行入口，它们分别对应原先 `src/` 下的三个脚本：
 
 ```text
-kv-cache-token-replay
-kv-cache-request-replay
-kv-cache-openai-to-token-ids
+kv-capacity-token-replay
+kv-capacity-request-replay
+kv-capacity-openai-to-token-ids
 ```
 
 例如，离线 token IDs 回放也可以写成：
 
 ```bash
-kv-cache-token-replay requests.jsonl \
+kv-capacity-token-replay requests.jsonl \
   --kv-bytes-per-token 61505 \
   --page-size 64 \
   --capacities 10GiB,100GiB,1TiB

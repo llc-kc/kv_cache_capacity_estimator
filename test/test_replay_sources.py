@@ -9,19 +9,19 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from kv_cache_simulator.tokenize import (
+from kv_capacity_estimator.tokenize import (
     EngineTokenizer,
     SglangTokenizer,
     VllmTokenizer,
     build_tokenize_payload,
     tokenize_openai_trace,
 )
-from kv_cache_simulator.tokenize.vllm import _VllmApi
-from kv_cache_simulator.tokenize.sglang import _SglangApi
-from kv_cache_simulator.models import TokenIdsRequest
-from kv_cache_simulator.simulator import SimulationConfig, simulate
-from kv_cache_simulator.token_id_replay import parse_jsonl
-from kv_cache_simulator.cli_args import log_request_details
+from kv_capacity_estimator.tokenize.vllm import _VllmApi
+from kv_capacity_estimator.tokenize.sglang import _SglangApi
+from kv_capacity_estimator.models import TokenIdsRequest
+from kv_capacity_estimator.simulator import SimulationConfig, simulate
+from kv_capacity_estimator.token_id_replay import parse_jsonl
+from kv_capacity_estimator.cli_args import log_request_details
 from request_replay import build_parser as build_request_parser
 from openai_to_token_ids import build_parser as build_convert_parser
 from openai_to_token_ids import main as convert_main
@@ -342,7 +342,7 @@ class ReplaySourcesTest(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertLogs(
-                "kv_cache_simulator.tokenize.common", level="INFO"
+                "kv_capacity_estimator.tokenize.common", level="INFO"
             ) as captured:
                 tokens = list(
                     tokenize_openai_trace(trace, FailingTokenizer(), workers=2)
@@ -371,7 +371,7 @@ class ReplaySourcesTest(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertLogs(
-                "kv_cache_simulator.tokenize.common", level="INFO"
+                "kv_capacity_estimator.tokenize.common", level="INFO"
             ) as captured:
                 tokens = list(
                     tokenize_openai_trace(trace, FailingTokenizer(), workers=1)
@@ -483,7 +483,7 @@ class ReplaySourcesTest(unittest.TestCase):
             trace = Path(directory) / "requests.jsonl"
             trace.write_text('{"prompt": "hello"}\n', encoding="utf-8")
             with self.assertLogs(
-                "kv_cache_simulator.cli_args", level="DEBUG"
+                "kv_capacity_estimator.cli_args", level="DEBUG"
             ) as captured:
                 list(
                     log_request_details(
@@ -536,7 +536,7 @@ class ReplaySourcesTest(unittest.TestCase):
         self.assertEqual(json.loads(request.data)["model"], "served-model")
 
     @patch(
-        "kv_cache_simulator.tokenize.vllm._load_vllm_api",
+        "kv_capacity_estimator.tokenize.vllm._load_vllm_api",
         side_effect=fake_vllm_api,
     )
     def test_vllm_tokenizer_renders_chat_in_process(self, _load_vllm_api):
@@ -574,7 +574,7 @@ class ReplaySourcesTest(unittest.TestCase):
         self.assertTrue(tokenizer._base_renderer.was_shutdown)
 
     @patch(
-        "kv_cache_simulator.tokenize.vllm._load_vllm_api",
+        "kv_capacity_estimator.tokenize.vllm._load_vllm_api",
         side_effect=fake_vllm_api,
     )
     def test_vllm_tokenizer_renders_completion_in_process(self, _load_vllm_api):
@@ -586,7 +586,7 @@ class ReplaySourcesTest(unittest.TestCase):
         self.assertEqual(FakeVllmRequest.last_body["max_tokens"], 0)
 
     @patch(
-        "kv_cache_simulator.tokenize.sglang._load_sglang_api",
+        "kv_capacity_estimator.tokenize.sglang._load_sglang_api",
         side_effect=fake_sglang_api,
     )
     def test_sglang_tokenizer_renders_tools_in_process(self, _load_sglang_api):
@@ -636,7 +636,7 @@ class ReplaySourcesTest(unittest.TestCase):
         self.assertEqual(FakeSglangFunctionCallParser.constructor_calls, 0)
 
     @patch(
-        "kv_cache_simulator.tokenize.sglang._load_sglang_api",
+        "kv_capacity_estimator.tokenize.sglang._load_sglang_api",
         side_effect=fake_sglang_api,
     )
     def test_sglang_tokenizer_renders_completion_in_process(self, _load_sglang_api):
@@ -653,7 +653,7 @@ class ReplaySourcesTest(unittest.TestCase):
         )
 
     @patch(
-        "kv_cache_simulator.tokenize.sglang._load_sglang_api",
+        "kv_capacity_estimator.tokenize.sglang._load_sglang_api",
         side_effect=fake_sglang_api,
     )
     def test_sglang_tokenizer_recovers_collapsed_parallel_tool_calls(
@@ -711,7 +711,7 @@ class ReplaySourcesTest(unittest.TestCase):
         self.assertEqual(recovered_calls[1]["id"], "call_1_2")
 
     @patch(
-        "kv_cache_simulator.tokenize.sglang._load_sglang_api",
+        "kv_capacity_estimator.tokenize.sglang._load_sglang_api",
         side_effect=fake_sglang_api,
     )
     def test_sglang_tokenizer_rejects_unrecoverable_array_arguments(
@@ -746,7 +746,7 @@ class ReplaySourcesTest(unittest.TestCase):
             )
 
     @patch(
-        "kv_cache_simulator.tokenize.sglang._load_sglang_api",
+        "kv_capacity_estimator.tokenize.sglang._load_sglang_api",
         side_effect=fake_sglang_api,
     )
     def test_sglang_tokenizer_rejects_unknown_tool_parser(self, _load_sglang_api):

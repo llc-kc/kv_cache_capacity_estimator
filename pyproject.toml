@@ -3,8 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kv-cache-capacity-simulator"
-version = "0.1.1"
+name = "kv-capacity-estimator"
+version = "0.2.0"
 description = "Replay request traces and estimate KV-cache capacity with exact LRU stack distances."
 readme = { file = "README.zh-CN.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -20,12 +20,12 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Repository = "https://github.com/llc-kc/kv_cache_capacity_simulator"
+Repository = "https://github.com/llc-kc/kv_capacity_estimator"
 
 [project.scripts]
-kv-cache-token-replay = "token_ids_replay:main"
-kv-cache-request-replay = "request_replay:main"
-kv-cache-openai-to-token-ids = "openai_to_token_ids:main"
+kv-capacity-token-replay = "token_ids_replay:main"
+kv-capacity-request-replay = "request_replay:main"
+kv-capacity-openai-to-token-ids = "openai_to_token_ids:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

@@ -6,22 +6,22 @@ import unittest
 from dataclasses import asdict
 from pathlib import Path
 
-from kv_cache_simulator import simulation_config_from_dict
-from kv_cache_simulator.analysis import (
+from kv_capacity_estimator import simulation_config_from_dict
+from kv_capacity_estimator.analysis import (
     MattsonStack,
     analyze_capacities,
     request_capacity_stats,
 )
-from kv_cache_simulator.cli_args import (
+from kv_capacity_estimator.cli_args import (
     log_arguments,
     log_replay_progress,
     parse_size,
 )
-from kv_cache_simulator.models import PageRequest as Request
-from kv_cache_simulator.models import TokenIdsRequest as ParsedRequest
-from kv_cache_simulator.pages import chained_page_hashes, requests_from_token_ids
-from kv_cache_simulator.simulator import ReplaySimulator, SimulationConfig
-from kv_cache_simulator.token_id_replay import parse_jsonl, resolve_parser
+from kv_capacity_estimator.models import PageRequest as Request
+from kv_capacity_estimator.models import TokenIdsRequest as ParsedRequest
+from kv_capacity_estimator.pages import chained_page_hashes, requests_from_token_ids
+from kv_capacity_estimator.simulator import ReplaySimulator, SimulationConfig
+from kv_capacity_estimator.token_id_replay import parse_jsonl, resolve_parser
 
 
 class CoreSimulationTest(unittest.TestCase):
@@ -237,7 +237,7 @@ class CoreSimulationTest(unittest.TestCase):
 
     def test_request_log_includes_cumulative_infinite_cache_capacity(self):
         with self.assertLogs(
-            "kv_cache_simulator.analysis", level="DEBUG"
+            "kv_capacity_estimator.analysis", level="DEBUG"
         ) as captured:
             request_capacity_stats(
                 [
@@ -274,7 +274,7 @@ class CoreSimulationTest(unittest.TestCase):
         replay.process(ParsedRequest((1, 2)))
 
         with self.assertLogs(
-            "kv_cache_simulator.analysis", level="DEBUG"
+            "kv_capacity_estimator.analysis", level="DEBUG"
         ) as captured:
             replay.process(ParsedRequest((1, 3)))
 
@@ -295,7 +295,7 @@ class CoreSimulationTest(unittest.TestCase):
         self.assertIn("hit_rate=0.500000", configured_capacity_logs[1])
 
     def test_replay_progress_logs_at_interval_and_completion(self):
-        with self.assertLogs("kv_cache_simulator.cli_args", level="INFO") as captured:
+        with self.assertLogs("kv_capacity_estimator.cli_args", level="INFO") as captured:
             requests = list(log_replay_progress(range(5), interval=2))
 
         self.assertEqual(requests, list(range(5)))
@@ -306,7 +306,7 @@ class CoreSimulationTest(unittest.TestCase):
 
     def test_replay_arguments_are_logged_with_credentials_redacted(self):
         with self.assertLogs(
-            "kv_cache_simulator.cli_args", level="INFO"
+            "kv_capacity_estimator.cli_args", level="INFO"
         ) as captured:
             log_arguments(
                 argparse.Namespace(
@@ -367,7 +367,7 @@ class CoreSimulationTest(unittest.TestCase):
 
     def test_resolve_importable_parser(self):
         self.assertIs(
-            resolve_parser("kv_cache_simulator.token_id_replay:parse_jsonl"),
+            resolve_parser("kv_capacity_estimator.token_id_replay:parse_jsonl"),
             parse_jsonl,
         )
 

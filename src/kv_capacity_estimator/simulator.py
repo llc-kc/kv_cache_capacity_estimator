@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Source-agnostic KV-cache simulation orchestration."""
+"""Source-agnostic KV capacity estimation orchestration."""
 
 from __future__ import annotations
 
