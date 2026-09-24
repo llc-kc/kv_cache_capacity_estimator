@@ -44,7 +44,7 @@ python src/token_ids_replay.py token_ids.jsonl \
 
 `request_replay.py` 默认使用 4 个线程并发 tokenize。使用 `--tokenize-workers N`可以调整线程数，设为 `1` 可恢复串行处理。请求即使在线程中乱序完成，也会严格按JSONL 输入顺序将 token IDs 送入仿真，因而不会改变 LRU 访问轨迹。
 
-#### 本地 SGLang 后端（无需部署，推荐）
+#### 本地 SGLang 后端（无需GPU部署，推荐）
 
 `sglang` 后端直接使用 SGLang 的 OpenAI 请求类型、tool-call parser、内容格式转换、chat template 和 tokenizer。它只读取模型 config、tokenizer 和 chat template，既不加载模型权重，也不启动推理服务。
 
@@ -88,26 +88,11 @@ python src/openai_to_token_ids.py \
 
 ### 4. online KV cache容量分析
 
-第一步：
-
-使用sglang镜像docker pull lmsysorg/sglang:v0.5.20-cu130或者
-
-在sglang镜像中构建和安装whl包，参考下面安装环节。
-
-第二步：
-
-获取sglang适配并安装覆盖原有版本
-
-```
-git clone -b kv_capacity_estimator https://github.com/llc-kc/sglang.git
-cd sglang
-pip uninstall -y sglang
-pip install -e "python" 
-```
+coming soon
 
 
 
-## 指标
+## Metrics
 
 ```text
 Page hit   = 命中的 page 访问数 / 全部 page 访问数
