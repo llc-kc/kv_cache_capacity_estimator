@@ -42,7 +42,7 @@ def add_simulation_arguments(parser: argparse.ArgumentParser) -> None:
         "--target-hit-rate-percent",
         "--expected-hit-rate-percent",
         type=_percentage,
-        default=0.99,
+        default=1.0,
         metavar="PERCENT",
         help=(
             "per-request target as a percentage of theoretical hit rate "
