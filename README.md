@@ -70,6 +70,18 @@ python src/request_replay.py \
   --capacities 40GiB,80GiB,160GiB,200GiB,250GiB,300GiB,512GiB
 ```
 
+deepseek v4.1 flash example:
+```bash
+python src/request_replay.py \
+  test_data/LongBench-v2/data_short.openai.jsonl \
+  --tokenize-backend sglang \
+  --model test_model/DeepSeek-V4.1-Flash-1017/ \
+  --tool-call-parser deepseekv41 \
+  --kv-bytes-per-token 1700 \
+  --target-hit-rate-percent 100 \
+  --page-size 256
+```
+
 For completion prompts, this backend uses the tokenizer loaded by SGLang. For chat messages, it reuses SGLang's content-format normalization and `apply_chat_template` path. This includes converting arguments in historical assistant tool calls from JSON strings to objects and forwarding `chat_template_kwargs` such as `enable_thinking`.
 
 **Tested models**

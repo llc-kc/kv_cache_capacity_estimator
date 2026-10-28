@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Union
 
 from ..models import TokenIdsRequest
 from ..token_id_replay import as_token_ids_request
@@ -15,6 +16,13 @@ from .common import request_body, validate_prompt_kind
 
 logger = logging.getLogger(__name__)
 
+# Tool-call parsers whose models SGLang renders with a native encoder instead
+# of an HF Jinja chat template (see sglang's ``resolve_chat_encoding_spec``).
+_RECIPE_PARSER_SPECS = {
+    "deepseekv41": "dsv41",
+    "deepseekv4": "dsv4",
+}
+
 
 @dataclass(frozen=True)
 class _SglangApi:
@@ -22,21 +30,28 @@ class _SglangApi:
     FunctionCallParser: Any
     PartialJsonAllow: Any
     detect_jinja_template_content_format: Any
+    envs: Any
+    get_config: Any
     get_tokenizer: Any
     normalize_assistant_tool_call_arguments: Any
     normalize_tool_content: Any
     partial_json_loads: Any
     process_content_for_template_format: Any
+    resolve_chat_encoding_spec: Any
 
 
 def _load_sglang_api() -> _SglangApi:
     try:
         from partial_json_parser.core.options import Allow as PartialJsonAllow
+        from sglang.srt.entrypoints.openai.chat_encoding import (
+            resolve_chat_encoding_spec,
+        )
         from sglang.srt.entrypoints.openai.protocol import TokenizeRequest
         from sglang.srt.entrypoints.openai.serving_chat import (
             normalize_assistant_tool_call_arguments,
             normalize_tool_content,
         )
+        from sglang.srt.environ import envs
         from sglang.srt.function_call.function_call_parser import FunctionCallParser
         from sglang.srt.function_call.utils import (
             _partial_json_loads as partial_json_loads,
@@ -45,6 +60,7 @@ def _load_sglang_api() -> _SglangApi:
             detect_jinja_template_content_format,
             process_content_for_template_format,
         )
+        from sglang.srt.utils.hf_transformers import config as hf_config_module
         from sglang.srt.utils.hf_transformers.tokenizer import get_tokenizer
     except ImportError as error:
         raise RuntimeError(
@@ -57,11 +73,14 @@ def _load_sglang_api() -> _SglangApi:
         FunctionCallParser=FunctionCallParser,
         PartialJsonAllow=PartialJsonAllow,
         detect_jinja_template_content_format=detect_jinja_template_content_format,
+        envs=envs,
+        get_config=hf_config_module.get_config,
         get_tokenizer=get_tokenizer,
         normalize_assistant_tool_call_arguments=normalize_assistant_tool_call_arguments,
         normalize_tool_content=normalize_tool_content,
         partial_json_loads=partial_json_loads,
         process_content_for_template_format=process_content_for_template_format,
+        resolve_chat_encoding_spec=resolve_chat_encoding_spec,
     )
 
 
@@ -208,9 +227,49 @@ class SglangTokenizer:
         ):
             raise ValueError(f"Unsupported tool_call_parser: {tool_call_parser}")
 
+        # Some models (e.g. DeepSeek-V4 / V4.1) ship no HF Jinja chat template;
+        # SGLang renders their prompts through a native encoder instead.
+        chat_encoding_spec = _RECIPE_PARSER_SPECS.get(tool_call_parser)
+        if chat_encoding_spec is None:
+            hf_config = None
+            try:
+                hf_config = api.get_config(
+                    model, trust_remote_code=trust_remote_code
+                )
+            except Exception as error:  # config is only needed for spec detection
+                logger.warning(
+                    "could not load model config for chat-encoding detection: %s",
+                    error,
+                )
+            if hf_config is not None:
+                try:
+                    chat_encoding_spec = api.resolve_chat_encoding_spec(
+                        hf_config=hf_config,
+                        tokenizer=tokenizer,
+                        tool_call_parser=tool_call_parser,
+                    )
+                except Exception as error:
+                    logger.warning(
+                        "chat-encoding spec detection failed: %s", error
+                    )
+
         self._api = api
         self._tokenizer = tokenizer
         self._tool_call_parser = tool_call_parser
+        self._chat_encoding_spec = chat_encoding_spec
+        self._recipe = None
+        self._default_effort = None
+        if chat_encoding_spec in ("dsv4", "dsv41"):
+            self._recipe = self._load_deepseek_recipe(chat_encoding_spec, tokenizer)
+            effort_env = (
+                api.envs.SGLANG_DSV41_REASONING_EFFORT
+                if chat_encoding_spec == "dsv41"
+                else api.envs.SGLANG_DSV4_REASONING_EFFORT
+            )
+            raw_effort = (effort_env.get() or "").strip()
+            self._default_effort = (
+                _numeric_effort(raw_effort) if raw_effort else None
+            )
         self._content_format = (
             api.detect_jinja_template_content_format(chat_template)
             if chat_template
@@ -221,13 +280,29 @@ class SglangTokenizer:
         except Exception:
             self._tokenizer_auto_adds_specials = True
 
+    @staticmethod
+    def _load_deepseek_recipe(spec: str, tokenizer: Any) -> Any:
+        """DeepSeek-V4 / V4.1 prompt encoder (deepseek-recipe), as the served
+        chat path builds it."""
+        try:
+            from sglang.srt.parser.deepseek_recipe_renderer import DeepSeekRecipe
+        except ImportError as error:
+            raise RuntimeError(
+                "tokenizing DeepSeek-V4 / V4.1 requests requires a SGLang build "
+                f"with the deepseek prompt encoder ({error})"
+            ) from error
+        return DeepSeekRecipe.from_hf_tokenizer(spec, tokenizer)
+
     def tokenize(self, request: Mapping[str, Any]) -> TokenIdsRequest:
         body = dict(request_body(request))
         validate_prompt_kind(body)
         parsed_request = self._api.TokenizeRequest.model_validate(body)
 
         if parsed_request.messages is not None:
-            token_ids = self._tokenize_chat(parsed_request)
+            if self._recipe is not None:
+                token_ids = self._tokenize_recipe_chat(parsed_request)
+            else:
+                token_ids = self._tokenize_chat(parsed_request)
         else:
             prompts = (
                 parsed_request.prompt
@@ -240,6 +315,79 @@ class SglangTokenizer:
                 prompts[0], add_special_tokens=parsed_request.add_special_tokens
             )
         return as_token_ids_request(token_ids)
+
+    def _tokenize_recipe_chat(self, request: Any) -> list[int]:
+        """Render a chat request with the DeepSeek recipe encoder, mirroring
+        SGLang's ``DeepSeekRecipeChatEncodingAdapter.encode_messages``."""
+        chat_request = request.to_chat_completion_request()
+        # The served adapter ignores the caller-normalized messages and rebuilds
+        # them from the request dump; history tool-call arguments stay on the
+        # wire as strings and recipe serializes object arguments itself.
+        wire = chat_request.model_dump(
+            exclude_unset=True, by_alias=True, mode="json"
+        )
+        wire_messages = _null_content_as_empty(wire["messages"])
+        continue_final = chat_request.continue_final_message
+        task = getattr(chat_request, "task", None)
+        task_prefix = None
+        trailing = _trailing_assistant_turn(wire_messages)
+        if trailing is not None:
+            if not continue_final:
+                wire_messages[-1] = {"role": "user", "content": trailing["content"]}
+            elif task is not None:
+                # A task renders its own tail, so the prefix follows it.
+                task_prefix = wire_messages.pop()["content"]
+                continue_final = False
+            else:
+                wire_messages[-1] = trailing
+
+        thinking = (chat_request.chat_template_kwargs or {}).get(
+            "thinking", self._api.envs.SGLANG_DEFAULT_THINKING.get()
+        )
+        body: dict[str, Any] = {
+            "messages": wire_messages,
+            "thinking": bool(thinking),
+            "continue_final_message": continue_final,
+            "response_format": wire.get("response_format"),
+        }
+        tools = self._select_tools(chat_request)
+        if tools is not None:
+            body["tools"] = [
+                {k: v for k, v in tool.items() if v is not None}
+                | {
+                    "function": {
+                        k: v
+                        for k, v in tool["function"].items()
+                        if v is not None
+                    }
+                }
+                for tool in tools
+            ]
+            body["tool_choice"] = wire.get("tool_choice")
+        body = {key: value for key, value in body.items() if value is not None}
+
+        effort = _numeric_effort(chat_request.reasoning_effort)
+        if effort is None or effort == "none":
+            effort = self._default_effort
+        budget = None
+        if effort is not None and not isinstance(effort, str):
+            if self._chat_encoding_spec != "dsv41":
+                raise ValueError(
+                    "DeepSeek-V4 reasoning_effort must be a named tier, got "
+                    f"{effort!r}"
+                )
+            from sglang.srt.parser.deepseek_recipe_renderer import parse_effort_budget
+
+            budget = parse_effort_budget(effort)
+        elif effort is not None:
+            body["reasoning_effort"] = effort
+
+        prompt_ids = self._recipe.encode(
+            body, task=task, effort_budget=budget
+        )
+        if task_prefix:
+            prompt_ids += self._recipe.encode_text(task_prefix)
+        return prompt_ids
 
     def _tokenize_chat(self, request: Any) -> list[int]:
         if self._content_format is None:
@@ -364,3 +512,30 @@ class SglangTokenizer:
             return messages[:-1], content
         messages[-1] = {"role": "user", "content": content}
         return messages, None
+
+
+def _null_content_as_empty(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """As SGLang renders them: a null message content becomes an empty string."""
+    return [
+        message if message.get("content") is not None else {**message, "content": ""}
+        for message in messages
+    ]
+
+
+def _trailing_assistant_turn(
+    messages: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """The trailing text turn SGLang continues or, without
+    continue_final_message, re-sends as a user turn, without the tool calls
+    SGLang discards (mirrors the DeepSeek recipe serving adapter)."""
+    last = messages[-1] if messages else None
+    if last and last["role"] == "assistant" and isinstance(last.get("content"), str):
+        return {key: value for key, value in last.items() if key != "tool_calls"}
+    return None
+
+
+def _numeric_effort(effort: Union[str, int, float, None]) -> Union[str, int, float, None]:
+    """A numeric string effort ("30", "0.3") as the number it spells."""
+    if isinstance(effort, str) and re.fullmatch(r"\d+(\.\d+)?", effort.strip()):
+        return float(effort) if "." in effort else int(effort)
+    return effort

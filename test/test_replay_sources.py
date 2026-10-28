@@ -121,6 +121,7 @@ class FakeSglangRequest:
     @classmethod
     def model_validate(cls, body):
         value = cls()
+        value.body = body
         value.messages = (
             [FakeSglangMessage(message) for message in body["messages"]]
             if body.get("messages") is not None
@@ -135,14 +136,27 @@ class FakeSglangRequest:
         value.reasoning_effort = body.get("reasoning_effort")
         value.continue_final_message = body.get("continue_final_message", False)
         value.chat_template_kwargs = body.get("chat_template_kwargs")
+        value.task = body.get("task")
         return value
 
     def to_chat_completion_request(self):
         return self
 
+    def model_dump(self, **_kwargs):
+        import copy
+
+        return {
+            "messages": copy.deepcopy(self.body["messages"]),
+            "tools": copy.deepcopy(self.body.get("tools")),
+            "tool_choice": self.body.get("tool_choice"),
+            "response_format": self.body.get("response_format"),
+            "reasoning_effort": self.body.get("reasoning_effort"),
+            "chat_template_kwargs": self.body.get("chat_template_kwargs"),
+        }
+
 
 class FakeSglangFunctionCallParser:
-    ToolCallParserEnum = {"glm47": object}
+    ToolCallParserEnum = {"glm47": object, "deepseekv41": object}
     constructor_calls = 0
 
     def __init__(self, tools, parser, tokenizer=None):
@@ -172,6 +186,25 @@ class FakeSglangTokenizerImpl:
         return [11]
 
 
+class FakeDeepSeekRecipe:
+    """Stands in for sglang's DeepSeekRecipe prompt encoder."""
+
+    def __init__(self, spec):
+        self.spec = spec
+        self.encoded_bodies = []
+        self.encode_calls = []
+
+    def encode(self, body, *, task=None, effort_budget=None, image_urls=None):
+        self.encoded_bodies.append(body)
+        self.encode_calls.append(
+            {"task": task, "effort_budget": effort_budget}
+        )
+        return [101, 102, 103]
+
+    def encode_text(self, text):
+        return [200 + len(text)]
+
+
 def fake_sglang_api():
     FakeSglangFunctionCallParser.constructor_calls = 0
     tokenizer = FakeSglangTokenizerImpl()
@@ -196,16 +229,26 @@ def fake_sglang_api():
         return message
 
     partial_json_allow = SimpleNamespace(ALL=object())
+    fake_envs = SimpleNamespace(
+        SGLANG_DEFAULT_THINKING=SimpleNamespace(get=lambda: False),
+        SGLANG_DSV4_REASONING_EFFORT=SimpleNamespace(get=lambda: ""),
+        SGLANG_DSV41_REASONING_EFFORT=SimpleNamespace(get=lambda: ""),
+    )
     return _SglangApi(
         TokenizeRequest=FakeSglangRequest,
         FunctionCallParser=FakeSglangFunctionCallParser,
         PartialJsonAllow=partial_json_allow,
         detect_jinja_template_content_format=lambda _template: "openai",
+        envs=fake_envs,
+        get_config=lambda *_args, **_kwargs: SimpleNamespace(
+            architectures=[], model_type=""
+        ),
         get_tokenizer=lambda *_args, **_kwargs: tokenizer,
         normalize_assistant_tool_call_arguments=normalize_arguments,
         normalize_tool_content=lambda _role, content: content,
         partial_json_loads=lambda value, _allow: (json.loads(value), len(value)),
         process_content_for_template_format=process_content,
+        resolve_chat_encoding_spec=lambda **_kwargs: None,
     )
 
 
@@ -752,6 +795,93 @@ class ReplaySourcesTest(unittest.TestCase):
     def test_sglang_tokenizer_rejects_unknown_tool_parser(self, _load_sglang_api):
         with self.assertRaisesRegex(ValueError, "Unsupported tool_call_parser"):
             SglangTokenizer("model-dir", tool_call_parser="unknown")
+
+    @patch(
+        "kv_capacity_estimator.tokenize.sglang._load_sglang_api",
+        side_effect=fake_sglang_api,
+    )
+    def test_sglang_deepseek_recipe_renders_chat_in_process(
+        self, _load_sglang_api
+    ):
+        recipe = FakeDeepSeekRecipe("dsv41")
+        with patch.object(
+            SglangTokenizer, "_load_deepseek_recipe", staticmethod(lambda spec, tok: recipe)
+        ):
+            tokenizer = SglangTokenizer(
+                "models/DeepSeek-V4.1-Flash", tool_call_parser="deepseekv41"
+            )
+            self.assertEqual(tokenizer._chat_encoding_spec, "dsv41")
+            result = tokenizer.tokenize(
+                {
+                    "messages": [
+                        {"role": "system", "content": "be helpful"},
+                        {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": "lookup",
+                                        "arguments": '{"q": "kv"}',
+                                    },
+                                }
+                            ],
+                        },
+                        {
+                            "role": "tool",
+                            "tool_call_id": "call_1",
+                            "content": "result",
+                        },
+                        {"role": "user", "content": "continue"},
+                    ],
+                    "tools": [
+                        {
+                            "type": "function",
+                            "function": {"name": "lookup", "parameters": {}},
+                        }
+                    ],
+                    "chat_template_kwargs": {"thinking": True},
+                }
+            )
+
+        self.assertEqual(result, TokenIdsRequest((101, 102, 103)))
+        body = recipe.encoded_bodies[0]
+        self.assertTrue(body["thinking"])
+        # Null assistant content is normalized to "".
+        self.assertEqual(body["messages"][1]["content"], "")
+        # History tool-call arguments stay wire strings (recipe serializes them).
+        self.assertEqual(
+            body["messages"][1]["tool_calls"][0]["function"]["arguments"],
+            '{"q": "kv"}',
+        )
+        self.assertEqual(body["tools"][0]["function"]["name"], "lookup")
+        # The Jinja template path is never used for the recipe spec.
+        self.assertIsNone(tokenizer._tokenizer.template_call)
+
+    @patch(
+        "kv_capacity_estimator.tokenize.sglang._load_sglang_api",
+        side_effect=fake_sglang_api,
+    )
+    def test_sglang_deepseek_recipe_passes_named_effort(
+        self, _load_sglang_api
+    ):
+        recipe = FakeDeepSeekRecipe("dsv41")
+        with patch.object(
+            SglangTokenizer, "_load_deepseek_recipe", staticmethod(lambda spec, tok: recipe)
+        ):
+            tokenizer = SglangTokenizer(
+                "models/DeepSeek-V4.1-Flash", tool_call_parser="deepseekv41"
+            )
+            tokenizer.tokenize(
+                {
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "reasoning_effort": "high",
+                }
+            )
+        body = recipe.encoded_bodies[0]
+        self.assertEqual(body["reasoning_effort"], "high")
+        self.assertIsNone(recipe.encode_calls[0]["effort_budget"])
 
 
 if __name__ == "__main__":
