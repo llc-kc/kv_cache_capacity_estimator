@@ -16,6 +16,7 @@ from kv_capacity_estimator.cli_args import (
     print_simulation,
     simulation_config,
 )
+from kv_capacity_estimator.reporting import human_bytes
 from kv_capacity_estimator.simulator import simulate
 from kv_capacity_estimator.tokenize import tokenize_openai_trace
 from kv_capacity_estimator.tokenize.cli import (
@@ -56,6 +57,16 @@ def main(argv: Iterable[str] | None = None) -> int:
         token_requests = log_request_details(token_requests, args.log_token_ids)
         result = simulate(token_requests, simulation_config(args))
         end_time = time.perf_counter()
+        unique_capacity_bytes = result.unique_pages * result.page_bytes
+        logging.info(
+            "all requests cumulative unique pages: unique_pages=%d, "
+            "page_size=%d tokens, page_bytes=%s, unique_capacity=%s (%.2f GiB)",
+            result.unique_pages,
+            result.page_size_tokens,
+            human_bytes(result.page_bytes),
+            human_bytes(unique_capacity_bytes),
+            unique_capacity_bytes / 2**30,
+        )
         logging.info("finish replay, time used: %.2f seconds", end_time - start_time)
         timings = result.timings
         logging.info(

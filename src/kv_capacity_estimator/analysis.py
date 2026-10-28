@@ -190,8 +190,13 @@ class OnlineLRUAnalyzer:
 
     def summarize(
         self, warm_up_requests: int = 0
-    ) -> tuple[list[CapacityResult], RequestCapacityStats, int]:
-        """Aggregate already-computed request results after a warm-up prefix."""
+    ) -> tuple[list[CapacityResult], RequestCapacityStats, int, int]:
+        """Aggregate already-computed request results after a warm-up prefix.
+
+        Returns the capacity results, per-request capacity stats, measured
+        page accesses and the number of distinct pages seen across all
+        requests (including warm-up), i.e. the infinite-cache footprint.
+        """
         if not 0 <= warm_up_requests <= len(self._requests):
             raise ValueError("warm_up_requests must be between zero and request count")
 
@@ -266,7 +271,7 @@ class OnlineLRUAnalyzer:
             requirements,
             target_hit_rate_ratio=self._target_hit_rate_ratio,
         )
-        return results, stats, total_page_accesses
+        return results, stats, total_page_accesses, self._infinite_cache_pages
 
 
 def analyze_capacities(

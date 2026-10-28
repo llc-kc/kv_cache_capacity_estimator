@@ -44,6 +44,7 @@ class SimulationResult:
     warm_up_requests: int
     requests: int
     page_accesses: int
+    unique_pages: int
     results: tuple[CapacityResult, ...]
     request_capacity_stats: RequestCapacityStats
     timings: SimulationTimings
@@ -120,7 +121,7 @@ class ReplaySimulator:
         warm_up_requests = math.floor(
             total_requests * self._config.warm_up_ratio
         )
-        capacity_results, capacity_stats, page_accesses = (
+        capacity_results, capacity_stats, page_accesses, unique_pages = (
             self._analyzer.summarize(warm_up_requests)
         )
         return SimulationResult(
@@ -131,6 +132,7 @@ class ReplaySimulator:
             warm_up_requests=warm_up_requests,
             requests=total_requests - warm_up_requests,
             page_accesses=page_accesses,
+            unique_pages=unique_pages,
             results=tuple(capacity_results),
             request_capacity_stats=capacity_stats,
             timings=SimulationTimings(
