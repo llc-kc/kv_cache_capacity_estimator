@@ -113,7 +113,7 @@ Currently, `kv_capacity_estimator` is integrated into SGLang to enable online KV
 
 #### 1. Start the SGLang container
 
-Pull the corresponding official SGLang image and reinstall this SGLang code:
+Pull the corresponding official daily SGLang image and reinstall this SGLang code:
 
 Start a container based on this image.
 
@@ -169,10 +169,13 @@ curl -s http://localhost:30000/v1/chat/completions \
   -d '{"model": "GLM-5.2", "messages": [{"role": "user", "content": "hello?"}]}'
 ```
 
+online capacity estimation + Prometheus Grafana demo (please check https://github.com/llc-kc/sglang/tree/kv_capacity_estimator_261104/kv_capacity_estimator/monitoring):
+<img width="2156" height="1165" alt="Snipaste_2026-11-04_14-23-42" src="https://github.com/user-attachments/assets/b16cc670-6b13-418e-81bd-7d6fcb85f04a" />
+
+
 For more details on the KV capacity estimator SGLang front end, please refer to the documentation:
 
 [KV Capacity Estimator documentation](https://github.com/llc-kc/sglang/blob/kv_capacity_estimator/kv_capacity_estimator/README.md?utm_source=chatgpt.com)
-
 
 
 # Interpreting Replay Results
