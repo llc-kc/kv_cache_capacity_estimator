@@ -94,11 +94,11 @@ python src/openai_to_token_ids.py \
 
 ## 4. online KV cache容量分析
 
-当前通过在sglang中插入kv_capacity_estimator的支持，源码见：https://github.com/llc-kc/sglang/tree/kv_capacity_estimator
+当前通过在sglang中插入kv_capacity_estimator的支持，源码见：https://github.com/llc-kc/sglang/tree/kv_capacity_estimator_261104
 
 使用方法：
 
-下载镜像lmsysorg/sglang:v0.5.20-cu130，启动基于该镜像的容器。
+下载这个版本对应的sglang镜像，重新安装sglang源码。
 
 按照文档下方的流程安装kv_capacity_estimator.
 

@@ -107,17 +107,13 @@ python src/openai_to_token_ids.py \
 
 Currently, `kv_capacity_estimator` is integrated into SGLang to enable online KV cache capacity estimation. The adapted SGLang source code is available at:
 
-[https://github.com/llc-kc/sglang/tree/kv_capacity_estimator](https://github.com/llc-kc/sglang/tree/kv_capacity_estimator?utm_source=chatgpt.com)
+[https://github.com/llc-kc/sglang/tree/kv_capacity_estimator_261104](https://github.com/llc-kc/sglang/tree/kv_capacity_estimator?utm_source=chatgpt.com)
 
 ### Usage
 
 #### 1. Start the SGLang container
 
-Pull the official SGLang image:
-
-```bash
-docker pull lmsysorg/sglang:v0.5.20-cu130
-```
+Pull the corresponding official SGLang image and reinstall this SGLang code:
 
 Start a container based on this image.
 
