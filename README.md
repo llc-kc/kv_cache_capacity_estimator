@@ -79,6 +79,7 @@ python src/request_replay.py \
   --tool-call-parser deepseekv41 \
   --kv-bytes-per-token 1700 \
   --target-hit-rate-percent 100 \
+  --progress-interval 500 \
   --page-size 256
 ```
 

@@ -492,6 +492,35 @@ class ReplaySourcesTest(unittest.TestCase):
         self.assertEqual(args.warm_up_percent, 0.25)
         self.assertTrue(args.log_token_ids)
 
+    def test_log_req_interval_defaults_to_100_and_keeps_legacy_alias(self):
+        parser = build_request_parser()
+        default_args = parser.parse_args(
+            ["requests.jsonl", "--kv-bytes-per-token", "1"]
+        )
+        self.assertEqual(default_args.log_req_interval, 100)
+
+        new_args = parser.parse_args(
+            [
+                "requests.jsonl",
+                "--kv-bytes-per-token",
+                "1",
+                "--log-req-interval",
+                "50",
+            ]
+        )
+        self.assertEqual(new_args.log_req_interval, 50)
+
+        legacy_args = parser.parse_args(
+            [
+                "requests.jsonl",
+                "--kv-bytes-per-token",
+                "1",
+                "--progress-interval",
+                "0",
+            ]
+        )
+        self.assertEqual(legacy_args.log_req_interval, 0)
+
     def test_openai_to_token_ids_uses_existing_trace_tokenizer(self):
         parser = build_convert_parser()
         args = parser.parse_args(["requests.jsonl", "--engine-url", "http://engine"])
@@ -787,6 +816,61 @@ class ReplaySourcesTest(unittest.TestCase):
                     ],
                 }
             )
+
+    @patch(
+        "kv_capacity_estimator.tokenize.sglang._load_sglang_api",
+        side_effect=fake_sglang_api,
+    )
+    def test_sglang_tokenizer_warns_on_parser_model_family_mismatch(
+        self, _load_sglang_api
+    ):
+        with patch.object(
+            SglangTokenizer,
+            "_load_deepseek_recipe",
+            staticmethod(lambda spec, tok: FakeDeepSeekRecipe(spec)),
+        ):
+            with self.assertLogs(
+                "kv_capacity_estimator.tokenize.parser_matching", level="WARNING"
+            ) as captured:
+                SglangTokenizer(
+                    "models/GLM-5.3",
+                    tool_call_parser="deepseekv41",
+                )
+        self.assertIn("does not match the glm model", captured.output[0])
+        self.assertIn("'deepseekv41'", captured.output[0])
+
+    @patch(
+        "kv_capacity_estimator.tokenize.sglang._load_sglang_api",
+        side_effect=fake_sglang_api,
+    )
+    def test_sglang_tokenizer_stays_silent_for_matching_parser(
+        self, _load_sglang_api
+    ):
+        with self.assertNoLogs(
+            "kv_capacity_estimator.tokenize.parser_matching", level="WARNING"
+        ):
+            SglangTokenizer(
+                "models/GLM-5.2-FP8",
+                tool_call_parser="glm47",
+            )
+
+    @patch(
+        "kv_capacity_estimator.tokenize.vllm._load_vllm_api",
+        side_effect=fake_vllm_api,
+    )
+    def test_vllm_tokenizer_warns_on_parser_model_family_mismatch(
+        self, _load_vllm_api
+    ):
+        with self.assertLogs(
+            "kv_capacity_estimator.tokenize.parser_matching", level="WARNING"
+        ) as captured:
+            tokenizer = VllmTokenizer(
+                "models/DeepSeek-V4.1-Flash",
+                tool_call_parser="glm47",
+            )
+        self.assertIn("does not match the deepseek model", captured.output[0])
+        self.assertIn("'glm47'", captured.output[0])
+        tokenizer.close()
 
     @patch(
         "kv_capacity_estimator.tokenize.sglang._load_sglang_api",

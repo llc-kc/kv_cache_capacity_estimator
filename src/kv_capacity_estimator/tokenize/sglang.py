@@ -12,6 +12,7 @@ from typing import Any, Union
 from ..models import TokenIdsRequest
 from ..token_id_replay import as_token_ids_request
 from .common import request_body, validate_prompt_kind
+from .parser_matching import log_tool_parser_mismatch
 
 
 logger = logging.getLogger(__name__)
@@ -230,28 +231,30 @@ class SglangTokenizer:
         # Some models (e.g. DeepSeek-V4 / V4.1) ship no HF Jinja chat template;
         # SGLang renders their prompts through a native encoder instead.
         chat_encoding_spec = _RECIPE_PARSER_SPECS.get(tool_call_parser)
-        if chat_encoding_spec is None:
-            hf_config = None
+        hf_config = None
+        try:
+            hf_config = api.get_config(model, trust_remote_code=trust_remote_code)
+        except Exception as error:  # config is only needed for detection
+            logger.warning(
+                "could not load model config for chat-encoding detection: %s",
+                error,
+            )
+        if chat_encoding_spec is None and hf_config is not None:
             try:
-                hf_config = api.get_config(
-                    model, trust_remote_code=trust_remote_code
+                chat_encoding_spec = api.resolve_chat_encoding_spec(
+                    hf_config=hf_config,
+                    tokenizer=tokenizer,
+                    tool_call_parser=tool_call_parser,
                 )
-            except Exception as error:  # config is only needed for spec detection
+            except Exception as error:
                 logger.warning(
-                    "could not load model config for chat-encoding detection: %s",
-                    error,
+                    "chat-encoding spec detection failed: %s", error
                 )
-            if hf_config is not None:
-                try:
-                    chat_encoding_spec = api.resolve_chat_encoding_spec(
-                        hf_config=hf_config,
-                        tokenizer=tokenizer,
-                        tool_call_parser=tool_call_parser,
-                    )
-                except Exception as error:
-                    logger.warning(
-                        "chat-encoding spec detection failed: %s", error
-                    )
+
+        # Warn when the parser names another model family (e.g. a DeepSeek
+        # parser on a GLM model); the config is authoritative when loaded,
+        # otherwise the model path gives a weaker hint.
+        log_tool_parser_mismatch(model, tool_call_parser, hf_config=hf_config)
 
         self._api = api
         self._tokenizer = tokenizer

@@ -11,6 +11,7 @@ from typing import Any
 from ..models import TokenIdsRequest
 from ..token_id_replay import as_token_ids_request
 from .common import request_body, validate_prompt_kind
+from .parser_matching import log_tool_parser_mismatch
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,11 @@ class VllmTokenizer:
         # Mirror vLLM's GPU-less render server: tokenization does not require
         # quantization kernels or model weights.
         model_config.quantization = None
+        log_tool_parser_mismatch(
+            model,
+            tool_call_parser,
+            hf_config=getattr(model_config, "hf_config", None),
+        )
         vllm_config = api.VllmConfig(model_config=model_config)
         renderer = api.renderer_from_config(vllm_config)
         online_renderer = api.OnlineRenderer(

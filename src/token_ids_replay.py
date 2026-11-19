@@ -38,7 +38,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     log_arguments(args)
     token_requests = log_replay_progress(
         resolve_parser(args.trace_parser)(args.trace),
-        args.progress_interval,
+        args.log_req_interval,
+        page_size=args.page_size,
+        include_partial_page=args.include_partial_page,
     )
     token_requests = log_request_details(token_requests, args.log_token_ids)
     start_time = time.time()

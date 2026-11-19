@@ -38,6 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="token-ID JSONL output; omit to write to stdout",
     )
     parser.add_argument(
+        "--log-req-interval",
         "--progress-interval",
         type=_non_negative_int,
         default=100,
@@ -79,7 +80,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             tokenizer,
             workers=args.tokenize_workers,
         )
-        requests = log_replay_progress(requests, args.progress_interval)
+        requests = log_replay_progress(requests, args.log_req_interval)
         if args.output is None:
             count = write_token_ids(requests, sys.stdout)
         else:

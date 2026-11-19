@@ -13,6 +13,7 @@ from kv_capacity_estimator.analysis import (
     request_capacity_stats,
 )
 from kv_capacity_estimator.cli_args import (
+    TheoreticalPrefixHitTracker,
     log_arguments,
     log_replay_progress,
     parse_size,
@@ -303,6 +304,74 @@ class CoreSimulationTest(unittest.TestCase):
         self.assertIn("requests=2", messages[0])
         self.assertIn("requests=4", messages[1])
         self.assertIn("requests=5", messages[2])
+
+    def test_theoretical_prefix_hit_tracker_uses_token_level_prefix(self):
+        # page_size=4: request 1 builds pages [0..3], [4..7]; request 2 reuses
+        # only the leading page, so 4 of its 8 tokens are covered.
+        tracker = TheoreticalPrefixHitTracker(page_size=4)
+        self.assertEqual(
+            tracker.record(ParsedRequest(tuple(range(8)))), (0, 8)
+        )
+        self.assertEqual(
+            tracker.record(ParsedRequest((0, 1, 2, 3, 8, 9, 10, 11))), (4, 8)
+        )
+        self.assertEqual(tracker.window_requests, 2)
+        self.assertEqual(tracker.window_hit_rate, 4 / 16)
+
+    def test_theoretical_prefix_hit_tracker_counts_partial_page_tokens(self):
+        tracker = TheoreticalPrefixHitTracker(
+            page_size=4, include_partial_page=True
+        )
+        tracker.record(ParsedRequest((1, 2, 3, 4, 5)))
+        # The full prefix is reused, including the 1-token partial page.
+        hit_tokens, total_tokens = tracker.record(ParsedRequest((1, 2, 3, 4, 5)))
+        self.assertEqual((hit_tokens, total_tokens), (5, 5))
+        self.assertEqual(tracker.window_hit_rate, 5 / 10)
+
+    def test_theoretical_prefix_hit_tracker_keeps_only_the_latest_window(self):
+        tracker = TheoreticalPrefixHitTracker(page_size=2)
+        tracker.record(ParsedRequest((1, 2, 3, 4)))  # 0/4
+        tracker.record(ParsedRequest((1, 2, 5, 6)))  # 2/4
+        tracker.advance_window(2)
+        self.assertEqual(tracker.window_requests, 2)
+        self.assertEqual(tracker.window_hit_rate, 2 / 8)
+
+        tracker.record(ParsedRequest((1, 2, 3, 4)))  # 4/4, fully covered
+        tracker.advance_window(2)
+        self.assertEqual(tracker.window_requests, 2)
+        # Only requests 2 and 3 remain: (2 + 4) hit tokens out of 8.
+        self.assertEqual(tracker.window_hit_rate, 6 / 8)
+
+    def test_replay_progress_reports_window_theoretical_prefix_hit_rate(self):
+        requests = [
+            ParsedRequest(tuple(range(8))),
+            ParsedRequest((0, 1, 2, 3, 8, 9, 10, 11)),
+        ]
+        with self.assertLogs("kv_capacity_estimator.cli_args", level="INFO") as captured:
+            list(
+                log_replay_progress(
+                    requests, interval=2, page_size=4
+                )
+            )
+
+        message = captured.records[-1].getMessage()
+        self.assertIn("window_requests=2", message)
+        self.assertIn("theoretical_prefix_hit_rate=25.00%", message)
+
+    def test_replay_progress_window_slides_with_the_interval(self):
+        # interval=2: each log only covers the two most recent requests.
+        requests = [
+            ParsedRequest((1, 2)),
+            ParsedRequest((1, 2)),  # window 1: 2/4 = 50%
+            ParsedRequest((3, 4)),
+            ParsedRequest((5, 6)),  # window 2: 0/4 = 0%
+        ]
+        with self.assertLogs("kv_capacity_estimator.cli_args", level="INFO") as captured:
+            list(log_replay_progress(requests, interval=2, page_size=2))
+
+        messages = [record.getMessage() for record in captured.records]
+        self.assertIn("theoretical_prefix_hit_rate=50.00%", messages[0])
+        self.assertIn("theoretical_prefix_hit_rate=0.00%", messages[1])
 
     def test_replay_arguments_are_logged_with_credentials_redacted(self):
         with self.assertLogs(

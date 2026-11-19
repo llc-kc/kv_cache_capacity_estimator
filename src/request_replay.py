@@ -52,7 +52,9 @@ def main(argv: Iterable[str] | None = None) -> int:
                 tokenizer,
                 workers=args.tokenize_workers,
             ),
-            args.progress_interval,
+            args.log_req_interval,
+            page_size=args.page_size,
+            include_partial_page=args.include_partial_page,
         )
         token_requests = log_request_details(token_requests, args.log_token_ids)
         result = simulate(token_requests, simulation_config(args))
