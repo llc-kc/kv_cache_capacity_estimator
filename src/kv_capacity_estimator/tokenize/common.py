@@ -16,6 +16,8 @@ from ..models import TokenIdsRequest
 
 logger = logging.getLogger(__name__)
 
+_EMPTY_TOKEN_IDS_REQUEST = TokenIdsRequest(())
+
 
 class Tokenizer(Protocol):
     def tokenize(self, request: Mapping[str, Any]) -> TokenIdsRequest: ...
@@ -57,11 +59,26 @@ def _iter_openai_jsonl(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
 
 
 def tokenize_openai_trace(
-    path: Path, tokenizer: Tokenizer, *, workers: int = 1
+    path: Path,
+    tokenizer: Tokenizer,
+    *,
+    workers: int = 1,
+    on_error: str = "skip",
 ) -> Iterator[TokenIdsRequest]:
-    """Tokenize a trace concurrently while yielding results in input order."""
+    """Tokenize a trace concurrently while yielding results in input order.
+
+    ``on_error`` controls what is yielded when a request cannot be tokenized:
+
+    * ``"skip"`` (default): log the failure and yield nothing, so failed rows
+      are dropped.
+    * ``"empty"``: log the failure and yield an empty
+      :class:`TokenIdsRequest` instead, keeping one output row per input row
+      so the two files stay line-aligned.
+    """
     if workers <= 0:
         raise ValueError("workers must be positive")
+    if on_error not in ("skip", "empty"):
+        raise ValueError("on_error must be one of: skip, empty")
     succeeded = 0
     failed = 0
     if workers == 1:
@@ -70,7 +87,9 @@ def tokenize_openai_trace(
                 token_request = _tokenize_request(line_number, request, tokenizer)
             except (RuntimeError, ValueError) as error:
                 failed += 1
-                logger.error("skipping request after tokenization error: %s", error)
+                logger.error("request tokenization failed: %s", error)
+                if on_error == "empty":
+                    yield _EMPTY_TOKEN_IDS_REQUEST
             else:
                 succeeded += 1
                 yield token_request
@@ -108,7 +127,9 @@ def tokenize_openai_trace(
                 _line_number, token_request = pending.popleft().result()
             except (RuntimeError, ValueError) as error:
                 failed += 1
-                logger.error("skipping request after tokenization error: %s", error)
+                logger.error("request tokenization failed: %s", error)
+                if on_error == "empty":
+                    yield _EMPTY_TOKEN_IDS_REQUEST
             else:
                 succeeded += 1
                 yield token_request

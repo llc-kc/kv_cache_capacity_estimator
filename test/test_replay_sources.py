@@ -427,6 +427,81 @@ class ReplaySourcesTest(unittest.TestCase):
         self.assertIn("line 2: tokenizer unavailable", captured.output[0])
         self.assertIn("succeeded=2, failed=1", captured.output[-1])
 
+    def test_openai_trace_serial_error_yields_empty_placeholder(self):
+        class FailingTokenizer:
+            def tokenize(self, request):
+                if request["sequence"] == 2:
+                    raise RuntimeError("tokenizer unavailable")
+                return TokenIdsRequest((request["sequence"],))
+
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "requests.jsonl"
+            trace.write_text(
+                '{"prompt": "first", "sequence": 1}\n'
+                '{"prompt": "second", "sequence": 2}\n'
+                '{"prompt": "third", "sequence": 3}\n',
+                encoding="utf-8",
+            )
+            with self.assertLogs(
+                "kv_capacity_estimator.tokenize.common", level="INFO"
+            ) as captured:
+                tokens = list(
+                    tokenize_openai_trace(
+                        trace, FailingTokenizer(), workers=1, on_error="empty"
+                    )
+                )
+
+        self.assertEqual(
+            [request.input_ids for request in tokens],
+            [(1,), (), (3,)],
+        )
+        self.assertIn("line 2: tokenizer unavailable", captured.output[0])
+        self.assertIn("succeeded=2, failed=1", captured.output[-1])
+
+    def test_openai_trace_parallel_error_yields_empty_placeholder(self):
+        class FailingTokenizer:
+            def tokenize(self, request):
+                if request["sequence"] == 2:
+                    raise ValueError("cannot tokenize request")
+                return TokenIdsRequest((request["sequence"],))
+
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "requests.jsonl"
+            trace.write_text(
+                "".join(
+                    json.dumps({"prompt": str(sequence), "sequence": sequence})
+                    + "\n"
+                    for sequence in range(1, 6)
+                ),
+                encoding="utf-8",
+            )
+            with self.assertLogs(
+                "kv_capacity_estimator.tokenize.common", level="INFO"
+            ) as captured:
+                tokens = list(
+                    tokenize_openai_trace(
+                        trace, FailingTokenizer(), workers=2, on_error="empty"
+                    )
+                )
+
+        self.assertEqual(
+            [request.input_ids for request in tokens],
+            [(1,), (), (3,), (4,), (5,)],
+        )
+        self.assertIn("line 2: cannot tokenize request", captured.output[0])
+        self.assertIn("succeeded=4, failed=1", captured.output[-1])
+
+    def test_openai_trace_rejects_invalid_on_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "requests.jsonl"
+            trace.write_text('{"prompt": "hello"}\n', encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "on_error must be one of"):
+                list(
+                    tokenize_openai_trace(
+                        trace, FakeTokenizer(), on_error="bogus"
+                    )
+                )
+
     def test_openai_trace_rejects_non_positive_worker_count(self):
         with self.assertRaisesRegex(ValueError, "workers must be positive"):
             list(tokenize_openai_trace(Path("unused.jsonl"), FakeTokenizer(), workers=0))
@@ -549,6 +624,42 @@ class ReplaySourcesTest(unittest.TestCase):
 
             self.assertEqual(result, 0)
             self.assertEqual(output.read_text(encoding="utf-8"), "[1,2,3,4]\n[1,2,3,4]\n")
+
+    def test_openai_to_token_ids_writes_empty_array_for_failed_request(self):
+        class PartialFailingTokenizer:
+            def tokenize(self, request):
+                if request["prompt"] == "broken":
+                    raise RuntimeError("tokenizer unavailable")
+                return TokenIdsRequest((1, 2, 3, 4))
+
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "requests.jsonl"
+            output = Path(directory) / "tokens.jsonl"
+            trace.write_text(
+                '{"prompt": "first"}\n'
+                '{"prompt": "broken"}\n'
+                '{"prompt": "third"}\n',
+                encoding="utf-8",
+            )
+            with patch(
+                "openai_to_token_ids.build_tokenizer",
+                return_value=PartialFailingTokenizer(),
+            ):
+                result = convert_main(
+                    [
+                        str(trace),
+                        "--engine-url",
+                        "http://engine",
+                        "--output",
+                        str(output),
+                        "--progress-interval",
+                        "0",
+                    ]
+                )
+
+            self.assertEqual(result, 0)
+            lines = output.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(lines, ["[1,2,3,4]", "[]", "[1,2,3,4]"])
 
     def test_request_details_logs_length_at_debug_and_ids_at_info(self):
         with tempfile.TemporaryDirectory() as directory:

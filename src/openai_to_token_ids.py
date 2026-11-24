@@ -79,6 +79,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             args.trace,
             tokenizer,
             workers=args.tokenize_workers,
+            on_error="empty",
         )
         requests = log_replay_progress(requests, args.log_req_interval)
         if args.output is None:
