@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import sys
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TextIO
@@ -35,7 +34,10 @@ def build_parser() -> argparse.ArgumentParser:
         "-o",
         "--output",
         type=Path,
-        help="token-ID JSONL output; omit to write to stdout",
+        help=(
+            "token-ID JSONL output; omit to write next to the input trace as "
+            "<trace-stem>.token_ids<trace-suffix>"
+        ),
     )
     parser.add_argument(
         "--log-req-interval",
@@ -67,10 +69,24 @@ def write_token_ids(
     return count
 
 
+def default_output_path(trace: Path) -> Path:
+    """Return the default output path next to ``trace``.
+
+    The ``.token_ids`` marker is inserted before the original suffix, e.g.
+    ``requests.jsonl`` -> ``requests.token_ids.jsonl``. A trace without a
+    suffix simply gets ``.token_ids`` appended.
+    """
+    if trace.suffix:
+        return trace.with_name(f"{trace.stem}.token_ids{trace.suffix}")
+    return trace.with_name(f"{trace.name}.token_ids")
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.output is not None and args.trace.resolve() == args.output.resolve():
+    if args.output is None:
+        args.output = default_output_path(args.trace)
+    if args.trace.resolve() == args.output.resolve():
         parser.error("input and output paths must be different")
     logging.basicConfig(level=getattr(logging, args.log_level))
     tokenizer = build_tokenizer(args, parser)
@@ -82,14 +98,11 @@ def main(argv: Iterable[str] | None = None) -> int:
             on_error="empty",
         )
         requests = log_replay_progress(requests, args.log_req_interval)
-        if args.output is None:
-            count = write_token_ids(requests, sys.stdout)
-        else:
-            with args.output.open("w", encoding="utf-8", newline="\n") as output_file:
-                count = write_token_ids(requests, output_file)
+        with args.output.open("w", encoding="utf-8", newline="\n") as output_file:
+            count = write_token_ids(requests, output_file)
     finally:
         close_tokenizer(tokenizer)
-    logging.info("wrote %d token-ID requests", count)
+    logging.info("wrote %d token-ID requests to %s", count, args.output)
     return 0
 
 

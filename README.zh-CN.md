@@ -77,7 +77,7 @@ python src/request_replay.py \
 
 ## 3. OpenAI 请求转换为 token IDs
 
-`openai_to_token_ids.py` 复用上述三种 tokenize 后端，将 OpenAI Chat/Completions兼容 JSONL 转为离线 token-ID JSONL。输出每行是一个 token ID 数组，可直接作为`token_ids_replay.py` 的输入。未指定 `--output` 时写到标准输出。
+`openai_to_token_ids.py` 复用上述三种 tokenize 后端，将 OpenAI Chat/Completions兼容 JSONL 转为离线 token-ID JSONL。输出每行是一个 token ID 数组，可直接作为`token_ids_replay.py` 的输入。未指定 `--output` 时默认写到输入文件同目录下，在原文件名后缀前插入 `.token_ids`（例如 `requests.jsonl` 输出为 `requests.token_ids.jsonl`；输入文件无后缀时直接追加 `.token_ids`）。
 
 例如使用本地 SGLang源码的tokenizer：
 

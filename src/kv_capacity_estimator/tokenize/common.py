@@ -168,4 +168,12 @@ def _tokenize_request(
     try:
         return tokenizer.tokenize(request)
     except (RuntimeError, ValueError) as error:
-        raise type(error)(f"line {line_number}: {error}") from error
+        message = f"line {line_number}: {error}"
+        # Some ValueError subclasses (e.g. pydantic.ValidationError) require
+        # extra constructor arguments and cannot be rebuilt from a single
+        # message string; fall back to a plain ValueError in that case so the
+        # original failure is not masked by a TypeError.
+        try:
+            raise type(error)(message) from error
+        except TypeError:
+            raise ValueError(message) from error

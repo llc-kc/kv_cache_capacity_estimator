@@ -91,7 +91,7 @@ For completion prompts, this backend uses the tokenizer loaded by SGLang. For ch
 
 ## 3. Convert OpenAI Requests to Token IDs
 
-`openai_to_token_ids.py` reuses the three tokenization backends described above to convert an OpenAI Chat/Completions-compatible JSONL file into an offline token-ID JSONL file. Each output line is an array of token IDs that can be used directly as input to `token_ids_replay.py`. If `--output` is omitted, the results are written to standard output.
+`openai_to_token_ids.py` reuses the three tokenization backends described above to convert an OpenAI Chat/Completions-compatible JSONL file into an offline token-ID JSONL file. Each output line is an array of token IDs that can be used directly as input to `token_ids_replay.py`. If `--output` is omitted, the results are written next to the input file with a `.token_ids` marker inserted before the original suffix (for example, `requests.jsonl` becomes `requests.token_ids.jsonl`; an input without a suffix simply gets `.token_ids` appended).
 
 For example, to use the tokenizer from a local SGLang source tree:
 
